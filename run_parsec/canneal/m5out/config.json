@@ -421,7 +421,7 @@
                         "0:18446744073709551615"
                     ],
                     "assoc": 2,
-                    "block_coherence": false,
+                    "block_coherence": true,
                     "clk_domain": "system.cpu_clk_domain",
                     "clusivity": "mostly_incl",
                     "compressor": null,
@@ -477,7 +477,7 @@
                         "tag_latency": 2,
                         "warmup_percentage": 0
                     },
-                    "has_ghost": false,
+                    "has_ghost": true,
                     "is_read_only": false,
                     "max_miss_count": 0,
                     "mshrs": 4,
@@ -496,7 +496,7 @@
                         "possible_states": []
                     },
                     "prefetch_on_access": true,
-                    "prefetch_ordered": false,
+                    "prefetch_ordered": true,
                     "prefetcher": null,
                     "replacement_policy": {
                         "type": "LRURP",
@@ -639,7 +639,7 @@
                         "tag_latency": 2,
                         "warmup_percentage": 0
                     },
-                    "has_ghost": false,
+                    "has_ghost": true,
                     "is_read_only": true,
                     "max_miss_count": 0,
                     "mshrs": 4,
@@ -1024,7 +1024,7 @@
                         "0:18446744073709551615"
                     ],
                     "assoc": 2,
-                    "block_coherence": false,
+                    "block_coherence": true,
                     "clk_domain": "system.cpu_clk_domain",
                     "clusivity": "mostly_incl",
                     "compressor": null,
@@ -1080,7 +1080,7 @@
                         "tag_latency": 2,
                         "warmup_percentage": 0
                     },
-                    "has_ghost": false,
+                    "has_ghost": true,
                     "is_read_only": false,
                     "max_miss_count": 0,
                     "mshrs": 4,
@@ -1099,7 +1099,7 @@
                         "possible_states": []
                     },
                     "prefetch_on_access": true,
-                    "prefetch_ordered": false,
+                    "prefetch_ordered": true,
                     "prefetcher": null,
                     "replacement_policy": {
                         "type": "LRURP",
@@ -1242,7 +1242,7 @@
                         "tag_latency": 2,
                         "warmup_percentage": 0
                     },
-                    "has_ghost": false,
+                    "has_ghost": true,
                     "is_read_only": true,
                     "max_miss_count": 0,
                     "mshrs": 4,
@@ -1627,7 +1627,7 @@
                         "0:18446744073709551615"
                     ],
                     "assoc": 2,
-                    "block_coherence": false,
+                    "block_coherence": true,
                     "clk_domain": "system.cpu_clk_domain",
                     "clusivity": "mostly_incl",
                     "compressor": null,
@@ -1683,7 +1683,7 @@
                         "tag_latency": 2,
                         "warmup_percentage": 0
                     },
-                    "has_ghost": false,
+                    "has_ghost": true,
                     "is_read_only": false,
                     "max_miss_count": 0,
                     "mshrs": 4,
@@ -1702,7 +1702,7 @@
                         "possible_states": []
                     },
                     "prefetch_on_access": true,
-                    "prefetch_ordered": false,
+                    "prefetch_ordered": true,
                     "prefetcher": null,
                     "replacement_policy": {
                         "type": "LRURP",
@@ -1845,7 +1845,7 @@
                         "tag_latency": 2,
                         "warmup_percentage": 0
                     },
-                    "has_ghost": false,
+                    "has_ghost": true,
                     "is_read_only": true,
                     "max_miss_count": 0,
                     "mshrs": 4,
@@ -2230,7 +2230,7 @@
                         "0:18446744073709551615"
                     ],
                     "assoc": 2,
-                    "block_coherence": false,
+                    "block_coherence": true,
                     "clk_domain": "system.cpu_clk_domain",
                     "clusivity": "mostly_incl",
                     "compressor": null,
@@ -2286,7 +2286,7 @@
                         "tag_latency": 2,
                         "warmup_percentage": 0
                     },
-                    "has_ghost": false,
+                    "has_ghost": true,
                     "is_read_only": false,
                     "max_miss_count": 0,
                     "mshrs": 4,
@@ -2305,7 +2305,7 @@
                         "possible_states": []
                     },
                     "prefetch_on_access": true,
-                    "prefetch_ordered": false,
+                    "prefetch_ordered": true,
                     "prefetcher": null,
                     "replacement_policy": {
                         "type": "LRURP",
@@ -2448,7 +2448,7 @@
                         "tag_latency": 2,
                         "warmup_percentage": 0
                     },
-                    "has_ghost": false,
+                    "has_ghost": true,
                     "is_read_only": true,
                     "max_miss_count": 0,
                     "mshrs": 4,
@@ -2824,12 +2824,12 @@
             "cxx_class": "Cache",
             "name": "l2",
             "path": "system.l2",
-            "above_ghost": false,
+            "above_ghost": true,
             "addr_ranges": [
                 "0:18446744073709551615"
             ],
             "assoc": 8,
-            "block_coherence": false,
+            "block_coherence": true,
             "clk_domain": "system.cpu_clk_domain",
             "clusivity": "mostly_excl",
             "compressor": null,
@@ -2904,7 +2904,7 @@
                 "possible_states": []
             },
             "prefetch_on_access": true,
-            "prefetch_ordered": false,
+            "prefetch_ordered": true,
             "prefetcher": {
                 "type": "StridePrefetcher",
                 "cxx_class": "Prefetcher::Stride",

@@ -2,19 +2,5 @@ netlist created. 200000 elements.
 [HOOKS] Entering ROI
 [GEM5]  Beginning of ROI
 [GEM5] Stats dumped.
-[GEM5] Total time spent in ROI: 0.464s
+[GEM5] Total time spent in ROI: 0.458s
 [HOOKS] Leaving ROI
-Final routing is: 2.49512e+08
-[HOOKS] Total time spent in ROI: 0.464s
-[HOOKS] Terminating
-
-real	0m2.657s
-user	0m3.917s
-sys	0m0.044s
-[PARSEC] [----------    End of output    ----------]
-[PARSEC]
-[PARSEC] BIBLIOGRAPHY
-[PARSEC]
-[PARSEC] [1] Bienia. Benchmarking Modern Multiprocessors. Ph.D. Thesis, 2011.
-[PARSEC]
-[PARSEC] Done.
