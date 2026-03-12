@@ -1083,7 +1083,11 @@ DefaultCommit<Impl>::commitInsts()
 					  //  printf("committing load addr %ld at pc %ld\n", head_inst->physEffAddr,pc[tid].instAddr());
 					//TODO: add notion of timestamp in here? Probably done inplicitly in cache by overeager evict.
 					cpu->getDataPort().commitaLoad(head_inst->physEffAddr, pc[tid].instAddr());
-
+                    // Ghost Minion: promote D-TLB entry for this (vaddr, asid) to committed
+                    // TODO: Double check this is correct - Cursor says this is correct.
+                    if (head_inst->effAddrValid())
+                        cpu->dtb->promoteEntry(head_inst->effAddr,
+                                cpu->thread[tid]->getTC());
                 }
 
                 // hardware transactional memory

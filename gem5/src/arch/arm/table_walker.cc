@@ -2202,6 +2202,9 @@ TableWalker::insertTableEntry(DescriptorBase &descriptor, bool longDescriptor)
             descriptor.lookupLevel, static_cast<uint8_t>(descriptor.domain()),
             descriptor.getRawData());
 
+    // Ghost Minion: tag entry with request timestamp (0 = committed)
+    te.timestamp = currState->req ? currState->req->timestamp : 0;
+
     // Insert the entry into the TLB
     tlb->insert(currState->vaddr, te);
     if (!currState->timing) {

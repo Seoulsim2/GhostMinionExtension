@@ -158,7 +158,7 @@ TLB::finalizePhysical(const RequestPtr &req,
 TlbEntry*
 TLB::lookup(Addr va, uint16_t asn, uint8_t vmid, bool hyp, bool secure,
             bool functional, bool ignore_asn, ExceptionLevel target_el,
-            bool in_host)
+            bool in_host, uint64_t request_timestamp)
 {
 
     TlbEntry *retval = NULL;
@@ -170,6 +170,12 @@ TLB::lookup(Addr va, uint16_t asn, uint8_t vmid, bool hyp, bool secure,
              target_el, in_host)) ||
             (ignore_asn && table[x].match(va, vmid, hyp, secure, target_el,
              in_host))) {
+            // Ghost Minion: only visible if committed (timestamp==0) or older/equal
+            if (request_timestamp != 0 && table[x].timestamp != 0 &&
+                table[x].timestamp > request_timestamp) {
+                ++x;
+                continue;
+            }
             // We only move the hit entry ahead when the position is higher
             // than rangeMRU
             if (x > rangeMRU && !functional) {
@@ -228,6 +234,23 @@ TLB::insert(Addr addr, TlbEntry &entry)
 
     stats.inserts++;
     ppRefills->notify(1);
+}
+
+// TODO: Double check this is correct - Cursor says this is correct.
+void
+TLB::promoteEntry(Addr vaddr, ThreadContext *tc)
+{
+    updateMiscReg(tc, NormalTran);
+    ExceptionLevel target_el = aarch64 ? aarch64EL : EL1;
+    for (int i = 0; i < size; i++) {
+        if (!table[i].valid)
+            continue;
+        if (table[i].match(vaddr, asid, vmid, isHyp, is_secure, false,
+                           target_el, false)) {
+            table[i].timestamp = 0;
+            return;
+        }
+    }
 }
 
 void
@@ -1482,7 +1505,7 @@ TLB::getTE(TlbEntry **te, const RequestPtr &req, ThreadContext *tc, Mode mode,
         vaddr = vaddr_tainted;
     }
     *te = lookup(vaddr, asid, vmid, isHyp, is_secure, false, false, target_el,
-                 false);
+                 false, req->timestamp);
     if (*te == NULL) {
         if (req->isPrefetch()) {
             // if the request is a prefetch don't attempt to fill the TLB or go
@@ -1514,7 +1537,7 @@ TLB::getTE(TlbEntry **te, const RequestPtr &req, ThreadContext *tc, Mode mode,
         }
 
         *te = lookup(vaddr, asid, vmid, isHyp, is_secure, false, false,
-                     target_el, false);
+                     target_el, false, req->timestamp);
         if (!*te)
             printTlb();
         assert(*te);
