@@ -688,7 +688,10 @@ DefaultDecode<Impl>::decodeInsts(ThreadID tid)
         // see if branches were predicted correctly.
 	inst->timestamp = cpu->timestamp;
 	inst->timeGuard = 0;
-	cpu->timestamp++;
+	//GhostMinion: only increment timestamp on branch/control instructions
+	if (inst->isControl()) {
+	    cpu->timestamp++;
+	}
 	//GhostMinion: set inst timestamp
         toRename->insts[toRenameIndex] = inst;
 

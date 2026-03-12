@@ -1072,6 +1072,13 @@ DefaultCommit<Impl>::commitInsts()
             // Try to commit the head instruction.
             bool commit_success = commitHead(head_inst, num_committed);
 
+            // GhostMinion: flatten the speculative block guarded by this branch
+            if (commit_success && head_inst->isControl()) {
+                uint64_t r = head_inst->timestamp;
+                uint64_t target = (r > 0) ? (r - 1) : 0;
+                rob->flattenTimestamp(tid, target);
+            }
+
             if (commit_success) {
                 ++num_committed;
                 stats.committedInstType[tid][head_inst->opClass()]++;
