@@ -160,24 +160,29 @@ TLB::lookup(Addr va, uint16_t asn, uint8_t vmid, bool hyp, bool secure,
             bool functional, bool ignore_asn, ExceptionLevel target_el,
             bool in_host, uint64_t request_timestamp)
 {
-
     TlbEntry *retval = NULL;
-
-    // Maintaining LRU array
     int x = 0;
+
     while (retval == NULL && x < size) {
         if ((!ignore_asn && table[x].match(va, asn, vmid, hyp, secure, false,
              target_el, in_host)) ||
             (ignore_asn && table[x].match(va, vmid, hyp, secure, target_el,
              in_host))) {
+
             // Ghost Minion: only visible if committed (timestamp==0) or older/equal
             if (request_timestamp != 0 && table[x].timestamp != 0 &&
                 table[x].timestamp > request_timestamp) {
+                
+                DPRINTF(TLB, "GHOST_MINION_INTERCEPT: VA %#x | ReqTS: %llu | EntryTS: %llu | Delta: %llu\n",
+                     va, 
+                     (unsigned long long)request_timestamp, 
+                     (unsigned long long)table[x].timestamp,
+                     (unsigned long long)(table[x].timestamp - request_timestamp));
+            
                 ++x;
-                continue;
+                continue; 
             }
-            // We only move the hit entry ahead when the position is higher
-            // than rangeMRU
+
             if (x > rangeMRU && !functional) {
                 TlbEntry tmp_entry = table[x];
                 for (int i = x; i > 0; i--)
@@ -191,20 +196,8 @@ TLB::lookup(Addr va, uint16_t asn, uint8_t vmid, bool hyp, bool secure,
         }
         ++x;
     }
-
-    DPRINTF(TLBVerbose, "Lookup %#x, asn %#x -> %s vmn 0x%x hyp %d secure %d "
-            "ppn %#x size: %#x pa: %#x ap:%d ns:%d nstid:%d g:%d asid: %d "
-            "el: %d\n",
-            va, asn, retval ? "hit" : "miss", vmid, hyp, secure,
-            retval ? retval->pfn       : 0, retval ? retval->size  : 0,
-            retval ? retval->pAddr(va) : 0, retval ? retval->ap    : 0,
-            retval ? retval->ns        : 0, retval ? retval->nstid : 0,
-            retval ? retval->global    : 0, retval ? retval->asid  : 0,
-            retval ? retval->el        : 0);
-
     return retval;
 }
-
 // insert a new TLB entry
 void
 TLB::insert(Addr addr, TlbEntry &entry)
@@ -245,7 +238,7 @@ TLB::promoteEntry(Addr vaddr, ThreadContext *tc)
     for (int i = 0; i < size; i++) {
         if (!table[i].valid)
             continue;
-        if (table[i].match(vaddr, asid, vmid, isHyp, is_secure, false,
+        if (table[i].match(vaddr, asid, vmid, isHyp, isSecure, false,
                            target_el, false)) {
             table[i].timestamp = 0;
             return;
@@ -488,15 +481,20 @@ TLB::translateSe(const RequestPtr &req, ThreadContext *tc, Mode mode,
                                  mode==Execute);
     else
         vaddr = vaddr_tainted;
-    Request::Flags flags = req->getFlags();
 
+    // --- GHOST MINION SE MODE HACK ---
+    // Force the hardware lookup so our strictness timestamps get evaluated.
+    lookup(vaddr, asid, vmid, isHyp, isSecure, false, false,
+           aarch64 ? aarch64EL : EL1, false, req->timestamp);
+    // ---------------------------------
+
+    Request::Flags flags = req->getFlags();
     bool is_fetch = (mode == Execute);
     bool is_write = (mode == Write);
 
     if (!is_fetch) {
         if (sctlr.a || !(flags & AllowUnaligned)) {
             if (vaddr & mask(flags & AlignmentMask)) {
-                // LPAE is always disabled in SE mode
                 return std::make_shared<DataAbort>(
                     vaddr_tainted,
                     TlbEntry::DomainType::NoAccess, is_write,
@@ -508,14 +506,12 @@ TLB::translateSe(const RequestPtr &req, ThreadContext *tc, Mode mode,
 
     Addr paddr;
     Process *p = tc->getProcessPtr();
-
     if (!p->pTable->translate(vaddr, paddr))
         return std::make_shared<GenericPageTableFault>(vaddr_tainted);
     req->setPaddr(paddr);
 
     return finalizePhysical(req, tc, mode);
 }
-
 Fault
 TLB::checkPermissions(TlbEntry *te, const RequestPtr &req, Mode mode)
 {
