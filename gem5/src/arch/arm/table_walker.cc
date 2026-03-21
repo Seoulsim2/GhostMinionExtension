@@ -46,6 +46,7 @@
 #include "cpu/thread_context.hh"
 #include "debug/Checkpoint.hh"
 #include "debug/Drain.hh"
+#include "debug/GhostMinionTLB.hh"
 #include "debug/TLB.hh"
 #include "debug/TLBVerbose.hh"
 #include "dev/dma_device.hh"
@@ -2204,6 +2205,11 @@ TableWalker::insertTableEntry(DescriptorBase &descriptor, bool longDescriptor)
 
     // Ghost Minion: tag entry with request timestamp (0 = committed)
     te.timestamp = currState->req ? currState->req->timestamp : 0;
+    if (te.timestamp != 0) {
+        DPRINTF(GhostMinionTLB,
+                "GHOST_MINION_FILL: vpn %#x entry.timestamp %llu\n", te.vpn,
+                (unsigned long long)te.timestamp);
+    }
 
     // Insert the entry into the TLB
     tlb->insert(currState->vaddr, te);

@@ -464,7 +464,7 @@ class Request
     {
         atomicOpFunctor.reset(other.atomicOpFunctor ?
                                 other.atomicOpFunctor->clone() : nullptr);
-	timestamp = 0;
+        timestamp = other.timestamp;
     }
 
     ~Request() {}

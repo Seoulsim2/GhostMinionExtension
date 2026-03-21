@@ -59,6 +59,7 @@
 #include "cpu/base.hh"
 #include "cpu/thread_context.hh"
 #include "debug/Checkpoint.hh"
+#include "debug/GhostMinionTLB.hh"
 #include "debug/TLB.hh"
 #include "debug/TLBVerbose.hh"
 #include "mem/packet_access.hh"
@@ -162,25 +163,40 @@ TLB::lookup(Addr va, uint16_t asn, uint8_t vmid, bool hyp, bool secure,
 {
     TlbEntry *retval = NULL;
     int x = 0;
-
+    DPRINTF(TLB, "Lookup: VA %#x | ASN %d | VMID %d | HYP %d | SECURE %d | FUNCTIONAL %d | IGNORE_ASN %d | TARGET_EL %d | IN_HOST %d | REQUEST_TIMESTAMP %llu",
+            va, asn, vmid, hyp, secure, functional, ignore_asn, target_el, in_host, request_timestamp);
+    DPRINTF(GhostMinionTLB,
+            "lookup access: va %#x req_ts %llu\n", va,
+            (unsigned long long)request_timestamp);
+    if (request_timestamp != 0)
+        stats.ghostMinionLookupsNonzeroReqTs++;
     while (retval == NULL && x < size) {
         if ((!ignore_asn && table[x].match(va, asn, vmid, hyp, secure, false,
              target_el, in_host)) ||
             (ignore_asn && table[x].match(va, vmid, hyp, secure, target_el,
              in_host))) {
 
+            DPRINTF(TLB, "TLB Request timestamp: %llu | Table Timestamp: %llu",
+                    (unsigned long long)request_timestamp,
+                    (unsigned long long)table[x].timestamp);
+            DPRINTF(GhostMinionTLB,
+                    "lookup match: slot %d va %#x req_ts %llu entry_ts %llu\n",
+                    x, va, (unsigned long long)request_timestamp,
+                    (unsigned long long)table[x].timestamp);
             // Ghost Minion: only visible if committed (timestamp==0) or older/equal
             if (request_timestamp != 0 && table[x].timestamp != 0 &&
                 table[x].timestamp > request_timestamp) {
-                
-                DPRINTF(TLB, "GHOST_MINION_INTERCEPT: VA %#x | ReqTS: %llu | EntryTS: %llu | Delta: %llu\n",
-                     va, 
-                     (unsigned long long)request_timestamp, 
-                     (unsigned long long)table[x].timestamp,
-                     (unsigned long long)(table[x].timestamp - request_timestamp));
-            
+                stats.ghostMinionStrictSkips++;
+                DPRINTF(GhostMinionTLB,
+                        "GHOST_MINION_STRICT_SKIP: VA %#x | ReqTS: %llu | "
+                        "EntryTS: %llu | Delta: %llu\n",
+                        va, (unsigned long long)request_timestamp,
+                        (unsigned long long)table[x].timestamp,
+                        (unsigned long long)(table[x].timestamp -
+                                              request_timestamp));
+
                 ++x;
-                continue; 
+                continue;
             }
 
             if (x > rangeMRU && !functional) {
@@ -226,6 +242,8 @@ TLB::insert(Addr addr, TlbEntry &entry)
     table[0] = entry;
 
     stats.inserts++;
+    if (entry.timestamp != 0)
+        stats.ghostMinionInsertsNonzeroEntryTs++;
     ppRefills->notify(1);
 }
 
@@ -451,6 +469,12 @@ TLB::TlbStats::TlbStats(Stats::Group *parent)
     ADD_STAT(domainFaults, "Number of TLB faults due to domain restrictions"),
     ADD_STAT(permsFaults, "Number of TLB faults due to permissions"
         " restrictions"),
+    ADD_STAT(ghostMinionLookupsNonzeroReqTs, "Ghost Minion: lookups with "
+        "non-zero request timestamp"),
+    ADD_STAT(ghostMinionStrictSkips, "Ghost Minion: matching entries skipped "
+        "due to strict timestamp ordering"),
+    ADD_STAT(ghostMinionInsertsNonzeroEntryTs, "Ghost Minion: TLB inserts "
+        "with non-zero entry timestamp (speculative fill tag)"),
     ADD_STAT(readAccesses, "DTB read accesses", readHits + readMisses),
     ADD_STAT(writeAccesses, "DTB write accesses", writeHits + writeMisses),
     ADD_STAT(instAccesses, "ITB inst accesses", instHits + instMisses),
