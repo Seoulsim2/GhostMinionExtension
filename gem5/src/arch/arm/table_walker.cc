@@ -2205,11 +2205,6 @@ TableWalker::insertTableEntry(DescriptorBase &descriptor, bool longDescriptor)
 
     // Ghost Minion: tag entry with request timestamp (0 = committed)
     te.timestamp = currState->req ? currState->req->timestamp : 0;
-    if (te.timestamp != 0) {
-        DPRINTF(GhostMinionTLB,
-                "GHOST_MINION_FILL: vpn %#x entry.timestamp %llu\n", te.vpn,
-                (unsigned long long)te.timestamp);
-    }
 
     // Insert the entry into the TLB
     tlb->insert(currState->vaddr, te);

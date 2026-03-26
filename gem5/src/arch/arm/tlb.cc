@@ -163,11 +163,6 @@ TLB::lookup(Addr va, uint16_t asn, uint8_t vmid, bool hyp, bool secure,
 {
     TlbEntry *retval = NULL;
     int x = 0;
-    DPRINTF(TLB, "Lookup: VA %#x | ASN %d | VMID %d | HYP %d | SECURE %d | FUNCTIONAL %d | IGNORE_ASN %d | TARGET_EL %d | IN_HOST %d | REQUEST_TIMESTAMP %llu",
-            va, asn, vmid, hyp, secure, functional, ignore_asn, target_el, in_host, request_timestamp);
-    DPRINTF(GhostMinionTLB,
-            "lookup access: va %#x req_ts %llu\n", va,
-            (unsigned long long)request_timestamp);
     if (request_timestamp != 0)
         stats.ghostMinionLookupsNonzeroReqTs++;
     while (retval == NULL && x < size) {
@@ -176,13 +171,6 @@ TLB::lookup(Addr va, uint16_t asn, uint8_t vmid, bool hyp, bool secure,
             (ignore_asn && table[x].match(va, vmid, hyp, secure, target_el,
              in_host))) {
 
-            DPRINTF(TLB, "TLB Request timestamp: %llu | Table Timestamp: %llu",
-                    (unsigned long long)request_timestamp,
-                    (unsigned long long)table[x].timestamp);
-            DPRINTF(GhostMinionTLB,
-                    "lookup match: slot %d va %#x req_ts %llu entry_ts %llu\n",
-                    x, va, (unsigned long long)request_timestamp,
-                    (unsigned long long)table[x].timestamp);
             // Ghost Minion: only visible if committed (timestamp==0) or older/equal
             if (request_timestamp != 0 && table[x].timestamp != 0 &&
                 table[x].timestamp > request_timestamp) {
