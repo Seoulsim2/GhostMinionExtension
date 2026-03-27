@@ -708,6 +708,9 @@ class TableWalker : public ClockedObject
         uint8_t vmid;
         bool    isHyp;
 
+        /** Timestamp for remembering TLB miss */
+        uint64_t strictnessTS;
+
         /** Translation state for delayed requests */
         TLB::Translation *transState;
 
@@ -900,6 +903,10 @@ class TableWalker : public ClockedObject
     void completeDrain();
     DrainState drain() override;
     void drainResume() override;
+
+    /** GhostMinion pipeline signals */
+    void squashWalks(uint64_t squashedTS);
+    void commitWalks(uint64_t committedTS);
 
     Port &getPort(const std::string &if_name,
                   PortID idx=InvalidPortID) override;

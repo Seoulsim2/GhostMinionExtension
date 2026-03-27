@@ -138,7 +138,7 @@ TableWalker::WalkerState::WalkerState() :
     pxnTable(false), hpd(false), stage2Req(false),
     stage2Tran(nullptr), timing(false), functional(false),
     mode(BaseTLB::Read), tranType(TLB::NormalTran), l2Desc(l1Desc),
-    delayed(false), tableWalker(nullptr)
+    delayed(false), tableWalker(nullptr), strictnessTS(0) // Initialize GhostMinion timestamp
 {
 }
 
@@ -254,6 +254,13 @@ TableWalker::walk(const RequestPtr &_req, ThreadContext *_tc, uint16_t _asid,
     currState->tranType = tranType;
     currState->isSecure = secure;
     currState->physAddrRange = physAddrRange;
+
+    // Capture the GhostMinion timestamp from the incoming TLB request
+    if (currState->req && currState->req->timestamp != 0) {
+        currState->strictnessTS = currState->req->timestamp;
+    } else {
+        currState->strictnessTS = 0;
+    }
 
     /** @todo These should be cached or grabbed from cached copies in
      the TLB, all these miscreg reads are expensive */
@@ -2071,8 +2078,11 @@ TableWalker::fetchDescriptor(Addr descAddr, uint8_t *data, int numBytes,
 {
     bool isTiming = currState->timing;
 
-    DPRINTF(TLBVerbose, "Fetching descriptor at address: 0x%x stage2Req: %d\n",
-            descAddr, currState->stage2Req);
+    // Grab strictness timestamp from active walker state
+    uint64_t strictnessTS = currState->strictnessTS;
+
+    DPRINTF(TLBVerbose, "Fetching descriptor at address: 0x%x stage2Req: %d, TS: %llu\n",
+            descAddr, currState->stage2Req, strictnessTS);
 
     // If this translation has a stage 2 then we know descAddr is an IPA and
     // needs to be translated before we can access the page table. Do that
@@ -2085,13 +2095,15 @@ TableWalker::fetchDescriptor(Addr descAddr, uint8_t *data, int numBytes,
                 Stage2MMU::Stage2Translation(*stage2Mmu, data, event,
                                              currState->vaddr);
             currState->stage2Tran = tran;
+            // Pass strictnessTS to Stage 2 MMU
             stage2Mmu->readDataTimed(currState->tc, descAddr, tran, numBytes,
-                                     flags);
+                                     flags, strictnessTS);
             fault = tran->fault;
         } else {
+            // Pass strictness TS to Stage 2 MMU
             fault = stage2Mmu->readDataUntimed(currState->tc,
                 currState->vaddr, descAddr, data, numBytes, flags,
-                currState->functional);
+                currState->functional, strictnessTS);
         }
 
         if (fault != NoFault) {
@@ -2109,8 +2121,9 @@ TableWalker::fetchDescriptor(Addr descAddr, uint8_t *data, int numBytes,
         }
     } else {
         if (isTiming) {
+            // Pass strictnessTS to DMA port
             port->dmaAction(MemCmd::ReadReq, descAddr, numBytes, event, data,
-                           currState->tc->getCpuPtr()->clockPeriod(),flags);
+                           currState->tc->getCpuPtr()->clockPeriod(),flags, strictnessTS);
             if (queueIndex >= 0) {
                 DPRINTF(TLBVerbose, "Adding to walker fifo: queue size before adding: %d\n",
                         stateQueues[queueIndex].size());
@@ -2118,12 +2131,18 @@ TableWalker::fetchDescriptor(Addr descAddr, uint8_t *data, int numBytes,
                 currState = NULL;
             }
         } else if (!currState->functional) {
+            // Pass strictness TS to DMA port
             port->dmaAction(MemCmd::ReadReq, descAddr, numBytes, NULL, data,
-                           currState->tc->getCpuPtr()->clockPeriod(), flags);
+                           currState->tc->getCpuPtr()->clockPeriod(), flags, strictnessTS);
             (this->*doDescriptor)();
         } else {
             RequestPtr req = std::make_shared<Request>(
                 descAddr, numBytes, flags, requestorId);
+
+            // Tag the explicit functional request
+            if (strictnessTS != 0) {
+                req->timestamp = strictnessTS;
+            }
 
             req->taskId(ContextSwitchTaskId::DMA);
             PacketPtr  pkt = new Packet(req, MemCmd::ReadReq);
@@ -2255,6 +2274,44 @@ TableWalker::pendingChange()
         stats.pendingWalks.sample(pendingReqs, now - pendingChangeTick);
         pendingReqs = n;
         pendingChangeTick = now;
+    }
+}
+/**
+ * Aborts active and pending page walks belonging to a squashed instruction path.
+ * Iterates through the currently active WalkerState and pending walk queues. If a walk 
+     * carries a Strictness Timestamp greater than or equal to the squashedTS, it belongs 
+     * to the mispredicted/faulting speculative path. Its timestamp is cleared so the 
+     * memory response is safely dropped and prevented from leaking into architectural state.
+ * @param squashedTS The strictness timestamp of the squashed instruction.
+ */
+void TableWalker::squashWalks(uint64_t squashedTS)
+{
+    // If the squashed TS is 0, nothing to do
+    if (squashedTS == 0) return;
+
+    // Iterate through active walks. If their strictness TS is >= squashedTS, 
+    // they belong to the squashed path and must be dropped.
+    if (currState && currState->strictnessTS != 0 && currState->strictnessTS >= squashedTS) {
+        DPRINTF(GhostMinionTLB, "Squashing active PTW walk for TS %llu\n", currState->strictnessTS);
+        // Note: You may need to handle in-flight memory responses gracefully
+        // by setting a flag like `currState->squashed = true;` to drop the response
+        currState->strictnessTS = 0; 
+    }
+}
+
+/**
+ * Promotes a successfully executed speculative page walk to architectural state.
+     * * When an instruction successfully retires/commits in the O3 CPU pipeline, this method 
+     * is called to safely clear the active Strictness Timestamp for the associated walk, 
+     * allowing intermediate Walk Cache entries to be safely accessed by younger instructions.
+     * * @param commitTS The strictness timestamp of the successfully committed instruction.
+ */
+void TableWalker::commitWalks(uint64_t commitTS)
+{
+    // Promote speculative walks to non-speculative (architectural) state
+    if (currState && currState->strictnessTS == commitTS) {
+        DPRINTF(GhostMinionTLB, "Committing active PTW walk for TS %llu\n", currState->strictnessTS);
+        currState->strictnessTS = 0; // 0 indicates architecturally committed
     }
 }
 
