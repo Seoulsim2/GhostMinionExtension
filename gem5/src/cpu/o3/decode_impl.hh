@@ -688,7 +688,10 @@ DefaultDecode<Impl>::decodeInsts(ThreadID tid)
         // see if branches were predicted correctly.
 	inst->timestamp = cpu->timestamp;
 	inst->timeGuard = 0;
-	cpu->timestamp++;
+	//GhostMinion: only increment timestamp on branch/control instructions
+	if (inst->isControl()) {
+	    cpu->timestamp++;
+	}
 
     // De-speculative Me: Resolution-based selective speculation state (per-thread)
     //   2. Snapshot control-resolution context for this instruction.
