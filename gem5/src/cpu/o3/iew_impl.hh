@@ -1369,6 +1369,20 @@ DefaultIEW<Impl>::executeInsts()
         // instruction first, so the branch resolution order will be correct.
         ThreadID tid = inst->threadNumber;
 
+        // De-speculative Me: Resolution-based selective speculation state (per-thread)
+        //   3. Update resolved branch sequence.
+        // If this control instruction executed, it is now resolved.
+        if (inst->isControl() && !inst->isSquashed()) {
+            if (inst->seqNum > cpu->resolvedBranchSeq[tid]) {
+                cpu->resolvedBranchSeq[tid] = inst->seqNum;
+            }
+            // If newest unresolved is now resolved (or older), clear it.
+            if (cpu->lastUnresolvedBranchSeq[tid] != 0 &&
+                cpu->lastUnresolvedBranchSeq[tid] <= cpu->resolvedBranchSeq[tid]) {
+                cpu->lastUnresolvedBranchSeq[tid] = 0;
+            }
+        }
+
         if (!fetchRedirect[tid] ||
             !toCommit->squash[tid] ||
             toCommit->squashedSeqNum[tid] > inst->seqNum) {
@@ -1379,6 +1393,11 @@ DefaultIEW<Impl>::executeInsts()
 
             if (inst->mispredicted() && !loadNotExecuted) {
                 fetchRedirect[tid] = true;
+
+                // De-speculative Me: Resolution-based selective speculation state (per-thread)
+                //   3. Invalidate decode-time snapshots from wrong path.
+                cpu->ctrlResolutionEpoch[tid]++;
+                cpu->lastUnresolvedBranchSeq[tid] = 0;
 
                 DPRINTF(IEW, "[tid:%i] [sn:%llu] Execute: "
                         "Branch mispredict detected.\n",

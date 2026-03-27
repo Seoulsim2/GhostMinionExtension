@@ -845,10 +845,24 @@ InstructionQueue<Impl>::scheduleReadyInsts()
 	//benefits). YOU can enable it though -- using the --blockContention option
 	//on the command line.
 
+    // De-speculative Me: Resolution-based selective speculation state (per-thread)
+    //   4. "Safe now" if same epoch and its branch dependency has resolved.
+    bool resolvedSafe =
+        (issuing_inst->ctrlDomainEpoch == cpu->ctrlResolutionEpoch[tid]) &&
+        ((issuing_inst->unresolvedCtrlDeps == 0) ||
+        (issuing_inst->unresolvedCtrlDeps <= cpu->resolvedBranchSeq[tid]));
+    if (resolvedSafe) {
+        issuing_inst->selectiveNonSpecSafe = true;
+    }
 
 	if(!fuPool->isPipelined(op_class) && cpu->block_contention) {
 
-		if(issuing_inst->timeGuard > issuedInstTime[op_class] && issuedInstTime[op_class] != 0 && !issuing_inst->isSquashed()) {
+        // De-speculative Me: Resolution-based selective speculation state (per-thread)
+        //   4. Adding time-based contention blocking.
+		if(issuing_inst->timeGuard > issuedInstTime[op_class] &&
+            issuedInstTime[op_class] != 0 &&
+            !issuing_inst->isSquashed() &&
+            !issuing_inst->selectiveNonSpecSafe) {
 			//printf("timeguarding until %ld, currently %ld\n", issuing_inst->timeGuard, issuedInstTime[op_class]);
 			timeGuarded = 1;
 		} else if (issuing_inst->timestamp >= issuedInstTime[op_class] || issuing_inst->timestamp == 0) {
