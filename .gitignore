@@ -32,3 +32,8 @@
 *.exe
 *.out
 *.app
+
+# Large Files
+aarch_system/binaries/vmlinux.arm64
+aarch_system/disks/aarch64-ubuntu-trusty-headless.img
+aarch_system/disks/aarch64-ubuntu-trusty-headless.img.tar.gz
