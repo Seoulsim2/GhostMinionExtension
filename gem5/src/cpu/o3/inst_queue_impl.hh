@@ -847,6 +847,7 @@ InstructionQueue<Impl>::scheduleReadyInsts()
 
     // De-speculative Me: Resolution-based selective speculation state (per-thread)
     //   4. "Safe now" if same epoch and its branch dependency has resolved.
+    ThreadID tid = issuing_inst->threadNumber;
     bool resolvedSafe =
         (issuing_inst->ctrlDomainEpoch == cpu->ctrlResolutionEpoch[tid]) &&
         ((issuing_inst->unresolvedCtrlDeps == 0) ||
@@ -892,7 +893,6 @@ InstructionQueue<Impl>::scheduleReadyInsts()
 
         int idx = FUPool::NoCapableFU;
         Cycles op_latency = Cycles(1);
-        ThreadID tid = issuing_inst->threadNumber;
 
         if (op_class != No_OpClass && !timeGuarded) {
             idx = fuPool->getUnit(op_class);
