@@ -58,6 +58,7 @@
 #include "cpu/timebuf.hh"
 #include "debug/Activity.hh"
 #include "debug/Drain.hh"
+#include "debug/GhostMinionPTW.hh"
 #include "debug/IEW.hh"
 #include "debug/O3PipeView.hh"
 #include "params/DerivO3CPU.hh"
@@ -518,10 +519,14 @@ DefaultIEW<Impl>::squashDueToBranch(const DynInstPtr& inst, ThreadID tid)
         uint64_t squashedTS = inst->timestamp; 
         if (squashedTS != 0) {
             auto *dtb = static_cast<ArmISA::TLB*>(cpu->dtb);
-            if (dtb && dtb->getTableWalker()) dtb->getTableWalker()->squashWalks(squashedTS);
+            if (dtb && dtb->getTableWalker() && dtb->getTableWalker()->hasGhostMinion()) {
+                dtb->getTableWalker()->squashWalks(squashedTS);
+            }
             
             auto *itb = static_cast<ArmISA::TLB*>(cpu->itb);
-            if (itb && itb->getTableWalker()) itb->getTableWalker()->squashWalks(squashedTS);
+            if (itb && itb->getTableWalker() && itb->getTableWalker()->hasGhostMinion()) {
+                itb->getTableWalker()->squashWalks(squashedTS);
+            }
         }
 
         wroteToTimeBuffer = true;

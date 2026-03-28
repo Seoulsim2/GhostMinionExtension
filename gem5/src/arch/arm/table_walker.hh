@@ -815,7 +815,7 @@ class TableWalker : public ClockedObject
 
         void doLongDescriptor();
 
-        WalkerState() : strictnessTS(0), isSquashed(false) {}
+        WalkerState();
 
         std::string name() const { return tableWalker->name(); }
     };
@@ -840,6 +840,9 @@ class TableWalker : public ClockedObject
 
     /** Indicates whether this table walker is part of the stage 2 mmu */
     const bool isStage2;
+
+    /** GhostMinion Toggle */
+    bool enableGhostMinion;
 
     /** TLB that is initiating these table walks */
     TLB *tlb;
@@ -898,6 +901,9 @@ class TableWalker : public ClockedObject
     }
 
     void init() override;
+
+    // Quick check for the CPU
+    bool hasGhostMinion() const { return enableGhostMinion; }
 
     bool haveLPAE() const { return _haveLPAE; }
     bool haveVirtualization() const { return _haveVirtualization; }

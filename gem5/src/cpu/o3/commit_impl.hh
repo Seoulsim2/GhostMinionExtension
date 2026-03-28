@@ -62,6 +62,7 @@
 #include "debug/CommitRate.hh"
 #include "debug/Drain.hh"
 #include "debug/ExecFaulting.hh"
+#include "debug/GhostMinionPTW.hh"
 #include "debug/HtmCpu.hh"
 #include "debug/O3PipeView.hh"
 #include "params/DerivO3CPU.hh"
@@ -564,12 +565,12 @@ DefaultCommit<Impl>::squashAll(ThreadID tid)
         
         if (squashedTS != 0) {
             auto *dtb = static_cast<ArmISA::TLB*>(cpu->dtb);
-            if (dtb && dtb->getTableWalker()) {
+            if (dtb && dtb->getTableWalker() && dtb->getTableWalker()->hasGhostMinion()) {
                 dtb->getTableWalker()->squashWalks(squashedTS);
             }
             
             auto *itb = static_cast<ArmISA::TLB*>(cpu->itb);
-            if (itb && itb->getTableWalker()) {
+            if (itb && itb->getTableWalker() && itb->getTableWalker()->hasGhostMinion()) {
                 itb->getTableWalker()->squashWalks(squashedTS);
             }
         }
@@ -1115,11 +1116,11 @@ DefaultCommit<Impl>::commitInsts()
                 uint64_t commitTS = head_inst->timestamp;
                 if (commitTS != 0) {
                     auto *dtb = static_cast<ArmISA::TLB*>(cpu->dtb);
-                    if (dtb && dtb->getTableWalker()) {
+                    if (dtb && dtb->getTableWalker() && dtb->getTableWalker()->hasGhostMinion()) {
                         dtb->getTableWalker()->commitWalks(commitTS);
                     }
                     auto *itb = static_cast<ArmISA::TLB*>(cpu->itb);
-                    if (itb && itb->getTableWalker()) {
+                    if (itb && itb->getTableWalker() && itb->getTableWalker()->hasGhostMinion()) {
                         itb->getTableWalker()->commitWalks(commitTS);
                     }
                 }

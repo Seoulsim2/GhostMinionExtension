@@ -47,6 +47,7 @@
 #include "debug/Checkpoint.hh"
 #include "debug/Drain.hh"
 #include "debug/GhostMinionTLB.hh"
+#include "debug/GhostMinionPTW.hh"
 #include "debug/TLB.hh"
 #include "debug/TLBVerbose.hh"
 #include "dev/dma_device.hh"
@@ -57,7 +58,7 @@ using namespace ArmISA;
 TableWalker::TableWalker(const Params *p)
     : ClockedObject(p),
       stage2Mmu(NULL), port(NULL), requestorId(Request::invldRequestorId),
-      isStage2(p->is_stage2), tlb(NULL),
+      isStage2(p->is_stage2), enableGhostMinion(p->enable_ghost_minion), tlb(NULL),
       currState(NULL), pending(false),
       numSquashable(p->num_squash_per_cycle),
       stats(this),
@@ -256,7 +257,7 @@ TableWalker::walk(const RequestPtr &_req, ThreadContext *_tc, uint16_t _asid,
     currState->physAddrRange = physAddrRange;
 
     // Capture the GhostMinion timestamp from the incoming TLB request
-    if (currState->req && currState->req->timestamp != 0) {
+    if (enableGhostMinion && currState->req && currState->req->timestamp != 0) {
         currState->strictnessTS = currState->req->timestamp;
     } else {
         currState->strictnessTS = 0;
@@ -1892,8 +1893,8 @@ TableWalker::doL1DescriptorWrapper()
     currState = stateQueues[L1].front();
 
     // Ghost Minion: Intercept and drop squashed walks
-    if (currState->isSquashed) {
-        DPRINTF(TLBVerbose, "Dropping memory response for squashed walk.\n");
+    if (enableGhostMinion && currState->isSquashed) {
+        DPRINTF(GhostMinionPTW, "Dropping memory response for squashed walk.\n");
         
         // 1. Remove the squashed walk from the active queue
         stateQueues[L1].pop_front(); // (Change index for L2/Long wrappers)
@@ -1975,8 +1976,8 @@ TableWalker::doL2DescriptorWrapper()
     currState = stateQueues[L2].front();
 
     // Ghost Minion: Intercept and drop squashed walks
-    if (currState->isSquashed) {
-        DPRINTF(TLBVerbose, "Dropping memory response for squashed walk.\n");
+    if (enableGhostMinion && currState->isSquashed) {
+        DPRINTF(GhostMinionPTW, "Dropping memory response for squashed walk.\n");
         
         // 1. Remove the squashed walk from the active queue
         stateQueues[L2].pop_front(); 
@@ -2066,8 +2067,9 @@ TableWalker::doLongDescriptorWrapper(LookupLevel curr_lookup_level)
 {
     currState = stateQueues[curr_lookup_level].front();
 
-    if (currState->isSquashed) {
-        DPRINTF(TLBVerbose, "Dropping Long memory response for squashed walk.\n");
+    // Ghost Minion: Intercept and drop squashed walks at all levels of long descriptor walks
+    if (enableGhostMinion && currState->isSquashed) {
+        DPRINTF(GhostMinionPTW, "Dropping Long memory response for squashed walk.\n");
         
         // Use the variable to pop from the correct queue level
         stateQueues[curr_lookup_level].pop_front(); 
@@ -2363,15 +2365,19 @@ TableWalker::pendingChange()
  */
 void TableWalker::squashWalks(uint64_t squashedTS)
 {
-    if (squashedTS == 0) return;
+    if (!enableGhostMinion || squashedTS == 0) return;
 
     if (currState && currState->strictnessTS != 0 && currState->strictnessTS >= squashedTS) {
-        currState->isSquashed = true; 
+        currState->isSquashed = true;
+        ++stats.squashedAfter; // It was active, so it started
+        DPRINTF(GhostMinionPTW, "GhostMinion: Tagged active walk (TS: %llu) for squash.\n", currState->strictnessTS); 
     }
 
     for (auto& walk : pendingQueue) {
         if (walk->strictnessTS != 0 && walk->strictnessTS >= squashedTS) {
-            walk->isSquashed = true; 
+            walk->isSquashed = true;
+            ++stats.squashedBefore; 
+            DPRINTF(GhostMinionPTW, "GhostMinion: Tagged pending walk (TS: %llu) for squash.\n", walk->strictnessTS); 
         }
     }
 
@@ -2379,6 +2385,8 @@ void TableWalker::squashWalks(uint64_t squashedTS)
         for (auto& walk : stateQueues[i]) {
             if (walk->strictnessTS != 0 && walk->strictnessTS >= squashedTS) {
                 walk->isSquashed = true; 
+                ++stats.squashedAfter; 
+                DPRINTF(GhostMinionPTW, "GhostMinion: Tagged sleeping walk (TS: %llu) for squash.\n", walk->strictnessTS);
             }
         }
     }
@@ -2398,12 +2406,14 @@ void TableWalker::commitWalks(uint64_t commitTS)
     // 1. Check the walk currently active in the processor
     if (currState && currState->strictnessTS == commitTS) {
         currState->strictnessTS = 0; 
+        DPRINTF(GhostMinionPTW, "GhostMinion: Walk promoted to architectural safe (TS: %llu).\n", commitTS);
     }
 
     // 2. Check walks waiting to start
     for (auto& walk : pendingQueue) {
         if (walk->strictnessTS == commitTS) {
             walk->strictnessTS = 0; 
+            DPRINTF(GhostMinionPTW, "GhostMinion: Walk promoted to architectural safe (TS: %llu).\n", commitTS);
         }
     }
 
@@ -2412,6 +2422,7 @@ void TableWalker::commitWalks(uint64_t commitTS)
         for (auto& walk : stateQueues[i]) {
             if (walk->strictnessTS == commitTS) {
                 walk->strictnessTS = 0; 
+                DPRINTF(GhostMinionPTW, "GhostMinion: Walk promoted to architectural safe (TS: %llu).\n", commitTS);
             }
         }
     }
