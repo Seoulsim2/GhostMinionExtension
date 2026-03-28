@@ -6,7 +6,7 @@ M=$(grep MemTotal /proc/meminfo | awk '{print $2}')
 G=$(expr $M / 2097152)
 P=$((G<N ? G : N))
 i=0
-for bench in blackscholes canneal ferret fluidanimate freqmine streamcluster swaptions
+for bench in blackscholes canneal ferret fluidanimate streamcluster swaptions # freqmine
 do
   ((i=i%P)); ((i++==0)) && wait
   (
