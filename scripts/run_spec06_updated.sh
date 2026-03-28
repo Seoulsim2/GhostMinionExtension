@@ -8,7 +8,8 @@ G=$(expr $M / 2097152)
 P=$((G<N ? G : N))
 i=0
 # removed gamess and mcf - missing from SPEC2006 (v1.2) image
-for bench in xalancbmk cactusADM zeusmp astar bwaves bzip2  calculix gcc GemsFDTD gobmk gromacs h264ref hmmer lbm leslie3d libquantum  milc namd omnetpp povray sjeng soplex tonto
+# for bench in xalancbmk cactusADM zeusmp astar bwaves bzip2  calculix gcc GemsFDTD gobmk gromacs h264ref hmmer lbm leslie3d libquantum  milc namd omnetpp povray sjeng soplex tonto
+for bench in xalancbmk cactusADM astar bwaves
 do
   ((i=i%P)); ((i++==0)) && wait
   (
@@ -18,7 +19,7 @@ do
   echo $BINA
   ARGS=$(grep $bench $BASE/spec_confs/args.txt | awk -F':' '{print $2}'| xargs)
   cd *$bench/run/run_base_ref_aarch64.0000
-  nice $BASE/scripts/gem5_scripts/run_ghostminion.sh "$BINA" "$ARGS" "$IN" 
+  nice $BASE/scripts/gem5_scripts/run_only_ghostminion.sh "$BINA" "$ARGS" "$IN" 
   ) &
 done
 cd $BASE/scripts
