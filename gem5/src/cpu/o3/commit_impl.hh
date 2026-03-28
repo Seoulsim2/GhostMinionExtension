@@ -556,6 +556,25 @@ template <class Impl>
 void
 DefaultCommit<Impl>::squashAll(ThreadID tid)
 {
+    // Ghost Minion: Squash PTW on pipeline flush
+    if (!rob->isEmpty(tid)) {
+        // Grab the timestamp from the oldest instruction in the ROB
+        // since EVERYTHING currently in the ROB is being squashed.
+        uint64_t squashedTS = rob->readHeadInst(tid)->timestamp;
+        
+        if (squashedTS != 0) {
+            auto *dtb = static_cast<ArmISA::TLB*>(cpu->dtb);
+            if (dtb && dtb->getTableWalker()) {
+                dtb->getTableWalker()->squashWalks(squashedTS);
+            }
+            
+            auto *itb = static_cast<ArmISA::TLB*>(cpu->itb);
+            if (itb && itb->getTableWalker()) {
+                itb->getTableWalker()->squashWalks(squashedTS);
+            }
+        }
+    }
+
     // If we want to include the squashing instruction in the squash,
     // then use one older sequence number.
     // Hopefully this doesn't mess things up.  Basically I want to squash
