@@ -46,6 +46,8 @@
 #include <string>
 
 #include "arch/utility.hh"
+#include "arch/arm/tlb.hh"
+#include "arch/arm/table_walker.hh"
 #include "base/loader/symtab.hh"
 #include "base/logging.hh"
 #include "config/the_isa.hh"
@@ -1088,6 +1090,19 @@ DefaultCommit<Impl>::commitInsts()
                     if (head_inst->effAddrValid())
                         cpu->dtb->promoteEntry(head_inst->effAddr,
                                 cpu->thread[tid]->getTC());
+                }
+
+                /** Ghost Minion: Promote Speculative PTW */
+                uint64_t commitTS = head_inst->timestamp;
+                if (commitTS != 0) {
+                    auto *dtb = static_cast<ArmISA::TLB*>(cpu->dtb);
+                    if (dtb && dtb->getTableWalker()) {
+                        dtb->getTableWalker()->commitWalks(commitTS);
+                    }
+                    auto *itb = static_cast<ArmISA::TLB*>(cpu->itb);
+                    if (itb && itb->getTableWalker()) {
+                        itb->getTableWalker()->commitWalks(commitTS);
+                    }
                 }
 
                 // hardware transactional memory

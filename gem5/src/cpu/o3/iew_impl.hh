@@ -49,6 +49,8 @@
 #include <queue>
 
 #include "arch/utility.hh"
+#include "arch/arm/tlb.hh"
+#include "arch/arm/table_walker.hh"
 #include "config/the_isa.hh"
 #include "cpu/checker/cpu.hh"
 #include "cpu/o3/fu_pool.hh"
@@ -512,6 +514,16 @@ DefaultIEW<Impl>::squashDueToBranch(const DynInstPtr& inst, ThreadID tid)
         toCommit->mispredictInst[tid] = inst;
         toCommit->includeSquashInst[tid] = false;
 
+        /** GhostMinion: Squash speculative PTW */
+        uint64_t squashedTS = inst->timestamp; 
+        if (squashedTS != 0) {
+            auto *dtb = static_cast<ArmISA::TLB*>(cpu->dtb);
+            if (dtb && dtb->getTableWalker()) dtb->getTableWalker()->squashWalks(squashedTS);
+            
+            auto *itb = static_cast<ArmISA::TLB*>(cpu->itb);
+            if (itb && itb->getTableWalker()) itb->getTableWalker()->squashWalks(squashedTS);
+        }
+
         wroteToTimeBuffer = true;
     }
 
@@ -539,6 +551,16 @@ DefaultIEW<Impl>::squashDueToMemOrder(const DynInstPtr& inst, ThreadID tid)
 
         // Must include the memory violator in the squash.
         toCommit->includeSquashInst[tid] = true;
+
+        /** GhostMinion: Squash speculative PTW */
+        uint64_t squashedTS = inst->timestamp; 
+        if (squashedTS != 0) {
+            auto *dtb = static_cast<ArmISA::TLB*>(cpu->dtb);
+            if (dtb && dtb->getTableWalker()) dtb->getTableWalker()->squashWalks(squashedTS);
+            
+            auto *itb = static_cast<ArmISA::TLB*>(cpu->itb);
+            if (itb && itb->getTableWalker()) itb->getTableWalker()->squashWalks(squashedTS);
+        }
 
         wroteToTimeBuffer = true;
     }

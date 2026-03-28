@@ -708,6 +708,9 @@ class TableWalker : public ClockedObject
         uint8_t vmid;
         bool    isHyp;
 
+        /** Flag indicating if the walk has been squashed */
+        bool isSquashed;
+
         /** Timestamp for remembering TLB miss */
         uint64_t strictnessTS;
 
@@ -812,7 +815,7 @@ class TableWalker : public ClockedObject
 
         void doLongDescriptor();
 
-        WalkerState();
+        WalkerState() : strictnessTS(0), isSquashed(false) {}
 
         std::string name() const { return tableWalker->name(); }
     };

@@ -138,7 +138,7 @@ TableWalker::WalkerState::WalkerState() :
     pxnTable(false), hpd(false), stage2Req(false),
     stage2Tran(nullptr), timing(false), functional(false),
     mode(BaseTLB::Read), tranType(TLB::NormalTran), l2Desc(l1Desc),
-    delayed(false), tableWalker(nullptr), strictnessTS(0) // Initialize GhostMinion timestamp
+    delayed(false), tableWalker(nullptr), strictnessTS(0), isSquashed(false) // Initialize GhostMinion timestamp
 {
 }
 
@@ -260,6 +260,7 @@ TableWalker::walk(const RequestPtr &_req, ThreadContext *_tc, uint16_t _asid,
         currState->strictnessTS = currState->req->timestamp;
     } else {
         currState->strictnessTS = 0;
+        currState->isSquashed = false;
     }
 
     /** @todo These should be cached or grabbed from cached copies in
@@ -1889,6 +1890,33 @@ void
 TableWalker::doL1DescriptorWrapper()
 {
     currState = stateQueues[L1].front();
+
+    // Ghost Minion: Intercept and drop squashed walks
+    if (currState->isSquashed) {
+        DPRINTF(TLBVerbose, "Dropping memory response for squashed walk.\n");
+        
+        // 1. Remove the squashed walk from the active queue
+        stateQueues[L1].pop_front(); // (Change index for L2/Long wrappers)
+        
+        // 2. Safely finish the translation state to unblock the CPU port
+        Fault fault = std::make_shared<UnimpFault>("Squashed Speculative PTW");
+        currState->transState->finish(fault, currState->req, currState->tc, currState->mode);
+        stats.walksShortTerminatedAtLevel[0]++;
+        
+        // 3. Unblock the PTW and process the next walk BEFORE deleting
+        pending = false;
+        nextWalk(currState->tc);
+        
+        // 4. Clean up pointers and free the memory
+        currState->req = NULL;
+        currState->tc = NULL;
+        currState->delayed = false;
+        delete currState;
+        currState = NULL;
+        
+        return; 
+    }
+
     currState->delayed = false;
     // if there's a stage2 translation object we don't need it any more
     if (currState->stage2Tran) {
@@ -1945,6 +1973,33 @@ void
 TableWalker::doL2DescriptorWrapper()
 {
     currState = stateQueues[L2].front();
+
+    // Ghost Minion: Intercept and drop squashed walks
+    if (currState->isSquashed) {
+        DPRINTF(TLBVerbose, "Dropping memory response for squashed walk.\n");
+        
+        // 1. Remove the squashed walk from the active queue
+        stateQueues[L2].pop_front(); 
+        
+        // 2. Safely finish the translation state to unblock the CPU port
+        Fault fault = std::make_shared<UnimpFault>("Squashed Speculative PTW");
+        currState->transState->finish(fault, currState->req, currState->tc, currState->mode);
+        stats.walksShortTerminatedAtLevel[1]++;
+        
+        // 3. Unblock the PTW and process the next walk BEFORE deleting
+        pending = false;
+        nextWalk(currState->tc);
+        
+        // 4. Clean up pointers and free the memory
+        currState->req = NULL;
+        currState->tc = NULL;
+        currState->delayed = false;
+        delete currState;
+        currState = NULL;
+        
+        return; 
+    }
+
     assert(currState->delayed);
     // if there's a stage2 translation object we don't need it any more
     if (currState->stage2Tran) {
@@ -2010,6 +2065,28 @@ void
 TableWalker::doLongDescriptorWrapper(LookupLevel curr_lookup_level)
 {
     currState = stateQueues[curr_lookup_level].front();
+
+    if (currState->isSquashed) {
+        DPRINTF(TLBVerbose, "Dropping Long memory response for squashed walk.\n");
+        
+        // Use the variable to pop from the correct queue level
+        stateQueues[curr_lookup_level].pop_front(); 
+        
+        Fault fault = std::make_shared<UnimpFault>("Squashed Speculative PTW");
+        currState->transState->finish(fault, currState->req, currState->tc, currState->mode);
+        
+        pending = false;
+        nextWalk(currState->tc); 
+        
+        currState->req = NULL;
+        currState->tc = NULL;
+        currState->delayed = false;
+        delete currState;
+        currState = NULL;
+        
+        return;
+    }
+
     assert(curr_lookup_level == currState->longDesc.lookupLevel);
     currState->delayed = false;
 
@@ -2286,16 +2363,24 @@ TableWalker::pendingChange()
  */
 void TableWalker::squashWalks(uint64_t squashedTS)
 {
-    // If the squashed TS is 0, nothing to do
     if (squashedTS == 0) return;
 
-    // Iterate through active walks. If their strictness TS is >= squashedTS, 
-    // they belong to the squashed path and must be dropped.
     if (currState && currState->strictnessTS != 0 && currState->strictnessTS >= squashedTS) {
-        DPRINTF(GhostMinionTLB, "Squashing active PTW walk for TS %llu\n", currState->strictnessTS);
-        // Note: You may need to handle in-flight memory responses gracefully
-        // by setting a flag like `currState->squashed = true;` to drop the response
-        currState->strictnessTS = 0; 
+        currState->isSquashed = true; 
+    }
+
+    for (auto& walk : pendingQueue) {
+        if (walk->strictnessTS != 0 && walk->strictnessTS >= squashedTS) {
+            walk->isSquashed = true; 
+        }
+    }
+
+    for (int i = 0; i < MAX_LOOKUP_LEVELS; ++i) {
+        for (auto& walk : stateQueues[i]) {
+            if (walk->strictnessTS != 0 && walk->strictnessTS >= squashedTS) {
+                walk->isSquashed = true; 
+            }
+        }
     }
 }
 
@@ -2308,10 +2393,27 @@ void TableWalker::squashWalks(uint64_t squashedTS)
  */
 void TableWalker::commitWalks(uint64_t commitTS)
 {
-    // Promote speculative walks to non-speculative (architectural) state
+    if (commitTS == 0) return;
+
+    // 1. Check the walk currently active in the processor
     if (currState && currState->strictnessTS == commitTS) {
-        DPRINTF(GhostMinionTLB, "Committing active PTW walk for TS %llu\n", currState->strictnessTS);
-        currState->strictnessTS = 0; // 0 indicates architecturally committed
+        currState->strictnessTS = 0; 
+    }
+
+    // 2. Check walks waiting to start
+    for (auto& walk : pendingQueue) {
+        if (walk->strictnessTS == commitTS) {
+            walk->strictnessTS = 0; 
+        }
+    }
+
+    // 3. Check walks paused waiting for memory responses
+    for (int i = 0; i < MAX_LOOKUP_LEVELS; ++i) {
+        for (auto& walk : stateQueues[i]) {
+            if (walk->strictnessTS == commitTS) {
+                walk->strictnessTS = 0; 
+            }
+        }
     }
 }
 
