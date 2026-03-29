@@ -9,7 +9,8 @@ P=$((G<N ? G : N))
 i=0
 # removed gamess and mcf - missing from SPEC2006 (v1.2) image
 # for bench in xalancbmk cactusADM zeusmp astar bwaves bzip2  calculix gcc GemsFDTD gobmk gromacs h264ref hmmer lbm leslie3d libquantum  milc namd omnetpp povray sjeng soplex tonto
-for bench in xalancbmk cactusADM astar bwaves
+# completed benchmarks: calculix astar xalancbmk bwaves cactusADM
+for bench in gcc
 do
   ((i=i%P)); ((i++==0)) && wait
   (
