@@ -1891,6 +1891,8 @@ void
 TableWalker::doL1DescriptorWrapper()
 {
     currState = stateQueues[L1].front();
+    DPRINTF(GhostMinionPTW, "doL1DescriptorWrapper called for vaddr %#x, isSquashed: %d\n",
+            currState->vaddr_tainted, currState->isSquashed);
 
     // Ghost Minion: Intercept and drop squashed walks
     if (enableGhostMinion && currState->isSquashed) {
@@ -1974,6 +1976,8 @@ void
 TableWalker::doL2DescriptorWrapper()
 {
     currState = stateQueues[L2].front();
+    DPRINTF(GhostMinionPTW, "doL2DescriptorWrapper called for vaddr %#x, isSquashed: %d\n",
+            currState->vaddr_tainted, currState->isSquashed);
 
     // Ghost Minion: Intercept and drop squashed walks
     if (enableGhostMinion && currState->isSquashed) {
@@ -2066,6 +2070,8 @@ void
 TableWalker::doLongDescriptorWrapper(LookupLevel curr_lookup_level)
 {
     currState = stateQueues[curr_lookup_level].front();
+    DPRINTF(GhostMinionPTW, "doLongDescriptorWrapper called for vaddr %#x, isSquashed: %d, lookup level: %d\n",
+            currState->vaddr_tainted, currState->isSquashed, curr_lookup_level);
 
     // Ghost Minion: Intercept and drop squashed walks at all levels of long descriptor walks
     if (enableGhostMinion && currState->isSquashed) {
@@ -2365,6 +2371,7 @@ TableWalker::pendingChange()
  */
 void TableWalker::squashWalks(uint64_t squashedTS)
 {
+    DPRINTF(GhostMinionPTW, "GhostMinion: Entered squashWalks for TS %llu.\n", squashedTS);
     if (!enableGhostMinion || squashedTS == 0) return;
 
     if (currState && currState->strictnessTS != 0 && currState->strictnessTS >= squashedTS) {
@@ -2401,6 +2408,7 @@ void TableWalker::squashWalks(uint64_t squashedTS)
  */
 void TableWalker::commitWalks(uint64_t commitTS)
 {
+    DPRINTF(GhostMinionPTW, "GhostMinion: Committing walks with TS: %llu.\n", commitTS);
     if (commitTS == 0) return;
 
     // 1. Check the walk currently active in the processor
