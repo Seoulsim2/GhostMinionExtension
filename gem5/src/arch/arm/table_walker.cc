@@ -2392,6 +2392,10 @@ void TableWalker::squashWalks(uint64_t squashedTS)
             }
         }
     }
+
+    if (currState) {
+        DPRINTF(GhostMinionPTW, "GhostMinion: Completed squashWalks for active walk with strictness TS %llu.\n", currState->strictnessTS);
+    }
 }
 
 /**
@@ -2403,18 +2407,18 @@ void TableWalker::squashWalks(uint64_t squashedTS)
  */
 void TableWalker::commitWalks(uint64_t commitTS)
 {
-    DPRINTF(GhostMinionPTW, "GhostMinion: Committing walks with TS: %llu.\n", commitTS);
+    // DPRINTF(GhostMinionPTW, "GhostMinion: Committing walks with TS: %llu.\n", commitTS);
     if (commitTS == 0) return;
 
     // 1. Check the walk currently active in the processor
-    if (currState && currState->strictnessTS == commitTS) {
+    if (currState && currState->strictnessTS <= commitTS) {
         currState->strictnessTS = 0; 
         DPRINTF(GhostMinionPTW, "GhostMinion: Walk promoted to architectural safe (TS: %llu).\n", commitTS);
     }
 
     // 2. Check walks waiting to start
     for (auto& walk : pendingQueue) {
-        if (walk->strictnessTS == commitTS) {
+        if (walk->strictnessTS <= commitTS) {
             walk->strictnessTS = 0; 
             DPRINTF(GhostMinionPTW, "GhostMinion: Walk promoted to architectural safe (TS: %llu).\n", commitTS);
         }
@@ -2423,7 +2427,7 @@ void TableWalker::commitWalks(uint64_t commitTS)
     // 3. Check walks paused waiting for memory responses
     for (int i = 0; i < MAX_LOOKUP_LEVELS; ++i) {
         for (auto& walk : stateQueues[i]) {
-            if (walk->strictnessTS == commitTS) {
+            if (walk->strictnessTS <= commitTS) {
                 walk->strictnessTS = 0; 
                 DPRINTF(GhostMinionPTW, "GhostMinion: Walk promoted to architectural safe (TS: %llu).\n", commitTS);
             }
