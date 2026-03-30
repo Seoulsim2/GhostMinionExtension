@@ -1,8 +1,9 @@
-Artefact Evaluation for GhostMinion
+DeSpeculative Me
 ==================================================
 
 This repository contains artefacts and workflows 
-to reproduce experiments from the MICRO 2021 paper
+to reproduce experiments from the DeSpeculative Me
+paper, which is an extension of the MICRO 2021 paper
 by S. Ainsworth 
 
 "GhostMinion: A Strictness-Ordered Cache System for Spectre Mitigation"
@@ -22,8 +23,8 @@ Hardware pre-requisities
 Software pre-requisites
 =======================
 
-* Linux operating system (We used Ubuntu 16.04 and Ubuntu 18.04)
-* A SPEC CPU2006 iso, placed in the root directory of the repository (We used v1.0).
+* Linux operating system (any version of Ubuntu >= 16.04 as of 30-03-2026)
+* A SPEC CPU2006 iso, placed in the root directory of the repository (We used v1.2).
 * AND/OR A SPEC CPU2017 iso, placed in the root directory of the repository.
 
 Installation and Building
@@ -32,13 +33,13 @@ Installation and Building
 You can install this repository as follows:
 
 ```
-git clone https://github.com/SamAinsworth/reproduce-ghostminion-paper
+git clone https://github.com/Seoulsim2/GhostMinionExtension
 ```
 
 All scripts from here onwards are assumed to be run from the scripts directory, from the root of the repository:
 
 ```
-cd reproduce-ghostminion-paper
+cd GhostMinionExtension
 cd scripts
 ```
 
@@ -52,24 +53,23 @@ Then, in the scripts folder, to compile the GhostMinion simulator, run
 ```
 ./build.sh
 ```
+Note that for versions of Ubuntu 21 and higher, build with the following command instead:
+```
+CC=gcc-11 CXX=g++-11 CXXFLAGS="-I/usr/include" LDFLAGS="-L/usr/lib/x86_64-linux-gnu" ./build.sh
+```
 
-To compile SPEC CPU2006, first place your SPEC .iso file (other images can be used by modifying the build_spec06.sh script first) in the root directory of the repository (next to the file 'PLACE_SPEC_ISO_HERE'). The instructions here assume V1.0 -- see Troubleshooting below to modify it to work with V1.2
+To compile SPEC CPU2006, first place your SPEC .iso file (other images can be used by modifying the build_spec06.sh script first) in the root directory of the repository (next to the file 'PLACE_SPEC_ISO_HERE'). The instructions here assume V1.2 -- see Troubleshooting below to modify it to work with V1.0
 
 Name it "cpu2006.iso" or change the script as appropriate.
 
 Then, from the scripts directory, run
 
 ```
-./build_spec06.sh
+./build_spec06_updated.sh
 ```
 
 Once this has successfully completed, it will build and set up run directories for all of the benchmarks (the runs themselves will fail, as the binaries are cross compiled).
 
-To do the same with SPECspeed 2017, place a SPECspeec 2017 iso (name starting with cpu2017 and ending in iso, i.e. "cpu2017-1_0_2.iso", or with appropriate modification to the script), and run
-
-```
-./build_spec17.sh
-```
 
 If you wish to run the Parsec workloads in FS mode, 
 
@@ -88,7 +88,7 @@ aarch64-ubuntu-trusty-headless.img.tar.gz
 From the Releases section of the Github repository, and place it in 
 
 ```
-reproduce-ghostminion-paper/aarch_system/disks
+GhostMinionExtension/aarch_system/disks
 ```
 
 Then, in the scripts directory, run
@@ -104,16 +104,9 @@ Running experimental workflows
 For the SPEC CPU2006 workloads from the paper, run
 
 ```
-./run_spec06.sh
+./run_spec06_updated.sh
 ```
 
-
-
-Similarly, for SPEC 2017:
-
-```
-./run_spec17.sh
-```
 
 And Parsec
 
@@ -131,7 +124,7 @@ Shorter/Longer workflow
 If you have a system with fewer cores, and/or to test the setup, simulation time can be reduced by removing workloads from the three experiments. The simplest to run will be SPEC CPU2006, and so you could pick some of the more interesting points from Figure 6, and only run those experiments. To do this, remove the other workloads from line 10 of run_spec06.sh, eg.
 
 ```
-for bench in xalancbmk cactusADM zeusmp astar bwaves bzip2  calculix gamess gcc GemsFDTD gobmk gromacs h264ref hmmer lbm leslie3d libquantum  milc namd omnetpp povray sjeng soplex tonto mcf
+for bench in xalancbmk cactusADM zeusmp astar bwaves bzip2  calculix gcc GemsFDTD gobmk gromacs h264ref hmmer lbm leslie3d libquantum  milc namd omnetpp povray sjeng soplex tonto
 ```
 
 becomes
@@ -197,15 +190,9 @@ Validation of results
 To generate graphs of the data, from the scripts folder run
 
 ```
-./plot_spec06.sh
+./plot_spec06_updated.sh
 ```
 
-or 
-
-
-```
-./plot_spec17.sh
-```
 
 or
 
@@ -224,16 +211,7 @@ If anything is unclear, or any unexpected results occur, please report it to the
 Troubleshooting
 =======
 
-* With the SPEC CPU2006 V1.2 iso, the input file for GCC was changed from "166.i" to "166.in". To use the automated scripts with the V1.2 iso, change the relevant line in spec_confs/args.txt.
-
-* SPECspeed 2017 requires a lot of memory to run workloads in gem5 (up to 20GB+ per benchmark). You may get system out-of-memory errors without this (especially with xalancbmk, roms and bwaves), and without large amounts of RAM available, gem5 will run its SPECspeed 2017 simulations in sequence rather than in parallel to partially mitigate this.
-
-* Some compilers produce ``fatal: syscall chdir (#49) unimplemented'' for omnetpp on SPECspeed 2017. This is a syscall that the version of gem5 we use does not emulate, but the version of aarch64-gnu-linux-gcc we used did not produce this. Wrf can also produce a similar syscall issue, likely caused by compiler.
+* With the SPEC CPU2006 V1.0 iso, the input file for GCC was changed from "166.in" to "166.i". To use the automated scripts with the V1.0 iso, change the relevant line in spec_confs/args.txt.
 
 * The final (non-timed) part of Streamcluster in Parsec fails to run with and without GhostMinion modifications in this version of gem5. This is innocuous, as the timed region-of-interest completes.
-
-
-Author
-=======
-Sam Ainsworth
 
